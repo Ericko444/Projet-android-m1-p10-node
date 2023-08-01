@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Categorie {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  places    Place[]
+}
+
+model Province {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(255)
+  places    Place[]
+}
+
+model Place {
+  id          Int       @id @default(autoincrement())
+  title       String    @unique @db.VarChar(255)
+  desc        String    @db.VarChar(255)
+  latitude         Float     @default(0) @db.Float
+  longitude        Float     @default(0) @db.Float
+  province    Province  @relation(fields: [provinceId], references: [id])
+  provinceId  Int
+  categorie   Categorie @relation(fields: [categorieId], references: [id])
+  categorieId Int
+  tags PlaceToTag[]
+  favorites Favorites[]
+  reviews Review[]
+}
+
+model Tag{
+  id  Int @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name String @db.VarChar(255)
+  places PlaceToTag[]
+}
+
+model PlaceToTag{
+  place Place @relation(fields: [placeId], references: [id])
+  placeId Int
+  tag Tag @relation(fields: [tagId], references: [id])
+  tagId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@id([placeId, tagId])
+}
+
+model User {
+  id  Int @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  username String @unique @db.VarChar(255)
+  name String @db.VarChar(255)
+  email String @unique @db.VarChar(255)
+  password String @db.VarChar(255)
+  profile String @db.VarChar(255)
+  favorites Favorites[]
+}
+
+model Review{
+  id  Int @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userId Int
+  placeId Int
+  place Place @relation(fields: [placeId], references: [id])
+  note Int
+  comment String @db.VarChar(255)
+}
+
+model Favorites{
+  id  Int @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  userId Int
+  placeId Int
+  place Place @relation(fields: [placeId], references: [id])
+}
+
+
+
+
+// model User {
+//   id       Int      @id @default(autoincrement())
+//   name     String
+//   events   Event[]  @relation("UserToEvent", references: [id])
+// }
+
+// model Event {
+//   id       Int      @id @default(autoincrement())
+//   name     String
+//   users    User[]   @relation("UserToEvent", references: [id])
+// }
+
+// model UserToEvent {
+//   id        Int      @id @default(autoincrement())
+//   userId    Int
+//   eventId   Int
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+// }
