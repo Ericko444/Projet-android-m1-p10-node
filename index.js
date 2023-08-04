@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require('bcrypt');
 
 const { PrismaClient } = require("@prisma/client");
 
@@ -139,10 +140,103 @@ async function getOneRandomPlaceFromEachProvince() {
   }
 }
 
-// Example usage:
-getOneRandomPlaceFromEachProvince()
-  .then((places) => console.log(places))
-  .catch((error) => console.error(error));
+async function login(email, password) {
+  const user = await prisma.users.findUnique({
+      where: { email },
+  });
+
+  if (!user) {
+      throw new Error('User not found');
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.password);
+
+  if (!passwordMatches) {
+      throw new Error('Invalid password');
+  }
+
+  const userReturn = {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    profile: user.profile,
+  };
+
+  const response = {
+    success: true,
+    message: 'Login successful',
+    data: userReturn,
+  };
+
+  return response;
+}
+
+async function signup(name, first_name, email, password) {
+  const fullName = name + ' ' + first_name;
+
+  const user = await prisma.users.findUnique({
+    where: { email },
+  });
+
+  if (user) {
+      throw new Error('Email already exists');
+  }
+
+  try {
+    const username = generateUsername(name, first_name);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await prisma.users.create({
+      data: { 
+        name: fullName.trim(),
+        username: username,
+        email: email,
+        password: hashedPassword,
+        profile: ''
+      },
+    });
+
+    const userReturn = {
+      id: newUser.id,
+      username: newUser.username,
+      name: newUser.name,
+      email: newUser.email,
+      profile: newUser.profile,
+    };
+
+    const response = {
+      success: true,
+      message: 'Sign-up successful',
+      data: userReturn,
+    };
+  
+    return response;
+
+  } catch (error) {
+    console.error(error);
+    throw new Error('An error occurred');
+  }
+}
+
+function generateUsername(name, firstName) {
+  const randomSuffix = Math.floor(Math.random() * 1000);
+  return `${name.toLowerCase()}_${firstName.toLowerCase().replace(/\s+/g, '')}${randomSuffix}`;
+}
+
+
+app.post("/api/login", (request, response) => {
+  const { email, password }  = request.body;
+  login(email, password)
+  .then((resp) => response.json(resp))
+  .catch((error) => response.status(401).json({ success: false, message: error.message }));
+});
+
+app.post("/api/signup", (request, response) => {
+  const { name, first_name, email, password }  = request.body;
+  signup(name, first_name, email, password)
+    .then((resp) => response.json(resp))
+    .catch((error) => response.status(400).json({ success: false, message: error.message }));
+});
 
 const PORT = 3001;
 app.listen(PORT, () => {
