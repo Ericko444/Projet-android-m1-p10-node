@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require('bcrypt');
 
 const { PrismaClient } = require("@prisma/client");
 
@@ -11,28 +12,6 @@ const admin = require("firebase-admin");
 
 app.use(express.json());
 
-async function createData() {
-  // const newPlace = await prisma.user.create({
-  //   data: {
-  //     username: 'Marc',
-  //     name: 'Marc',
-  //     email: 'mqrc@gmail.com',
-  //     password: 'fksdijfafs',
-  //     profile: ''
-  //   }
-  // });
-  // const newReview = await prisma.review.create({
-  //   data: {
-  //     userId: 1,
-  //     placeId: 2,
-  //     note: 5,
-  //     comment: ''
-  //   }
-  // });
-}
-
-// createData()
-
 async function main(response) {
   const allPlaces = await prisma.place.findMany();
   response.setHeader("Content-Type", "application/json");
@@ -40,30 +19,12 @@ async function main(response) {
 }
 
 app.get("/api/recommendations", (request, response) => {
-  // main(response)
-  //   .then(async () => {
-  //     await prisma.$disconnect();
-  //   })
-  //   .catch(async (e) => {
-  //     console.error(e);
-  //     await prisma.$disconnect();
-  //     process.exit(1);
-  //   });
   getPlacesWithHighestSumOfReviewNotes()
     .then((places) => response.json(places))
     .catch((error) => console.log(error));
 });
 
 app.get("/api/parprovinces", (request, response) => {
-  // main(response)
-  //   .then(async () => {
-  //     await prisma.$disconnect();
-  //   })
-  //   .catch(async (e) => {
-  //     console.error(e);
-  //     await prisma.$disconnect();
-  //     process.exit(1);
-  //   });
   getOneRandomPlaceFromEachProvince()
     .then((places) => response.json(places))
     .catch((error) => console.log(error));
@@ -159,35 +120,128 @@ async function getOneRandomPlaceFromEachProvince() {
   }
 }
 
-// Example usage:
-// getOneRandomPlaceFromEachProvince()
-//   .then((places) => console.log(places))
-//   .catch((error) => console.error(error));
+async function login(email, password) {
+  const user = await prisma.users.findUnique({
+      where: { email },
+  });
+
+  if (!user) {
+      throw new Error('User not found');
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.password);
+
+  if (!passwordMatches) {
+      throw new Error('Invalid password');
+  }
+
+  const userReturn = {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    profile: user.profile,
+  };
+
+  const response = {
+    success: true,
+    message: 'Login successful',
+    data: userReturn,
+  };
+
+  return response;
+}
+
+async function signup(name, first_name, email, password) {
+  const fullName = name + ' ' + first_name;
+
+  const user = await prisma.users.findUnique({
+    where: { email },
+  });
+
+  if (user) {
+      throw new Error('Email already exists');
+  }
+
+  try {
+    const username = generateUsername(name, first_name);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await prisma.users.create({
+      data: { 
+        name: fullName.trim(),
+        username: username,
+        email: email,
+        password: hashedPassword,
+        profile: ''
+      },
+    });
+
+    const userReturn = {
+      id: newUser.id,
+      username: newUser.username,
+      name: newUser.name,
+      email: newUser.email,
+      profile: newUser.profile,
+    };
+
+    const response = {
+      success: true,
+      message: 'Sign-up successful',
+      data: userReturn,
+    };
+  
+    return response;
+
+  } catch (error) {
+    console.error(error);
+    throw new Error('An error occurred');
+  }
+}
+
+function generateUsername(name, firstName) {
+  const randomSuffix = Math.floor(Math.random() * 1000);
+  return `${name.toLowerCase()}_${firstName.toLowerCase().replace(/\s+/g, '')}${randomSuffix}`;
+}
+
+
+app.post("/api/login", (request, response) => {
+  const { email, password }  = request.body;
+  login(email, password)
+  .then((resp) => response.json(resp))
+  .catch((error) => response.status(401).json({ success: false, message: error.message }));
+});
+
+app.post("/api/signup", (request, response) => {
+  const { name, first_name, email, password }  = request.body;
+  signup(name, first_name, email, password)
+    .then((resp) => response.json(resp))
+    .catch((error) => response.status(400).json({ success: false, message: error.message }));
+});
 
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-  projectId: 'tourism-m1'
-});
+// admin.initializeApp({
+//   credential: admin.credential.applicationDefault(),
+//   projectId: 'tourism-m1'
+// });
 
-const registrationToken = 'efeoTw2OQumAqT_QXdv6L9:APA91bEv1u_BSgpyqLiAT4_k-_1m6UQX-oedZ1j2ePjCLowWncHyE2Ug9V_bEb5QeCuU-0C8rAUbnX1ZCSKchNWkWlG0Yhz2a84RNwEIOKJilFPCrGx7kyjafUOmoRdrO4mPev8xVEOU';
+// const registrationToken = 'efeoTw2OQumAqT_QXdv6L9:APA91bEv1u_BSgpyqLiAT4_k-_1m6UQX-oedZ1j2ePjCLowWncHyE2Ug9V_bEb5QeCuU-0C8rAUbnX1ZCSKchNWkWlG0Yhz2a84RNwEIOKJilFPCrGx7kyjafUOmoRdrO4mPev8xVEOU';
 
-const message = {
-  notification: {
-    title: 'Bienvenu!',
-    body: 'Notification from Node'
-  },
-  token: registrationToken
-};
+// const message = {
+//   notification: {
+//     title: 'Bienvenu!',
+//     body: 'Notification from Node'
+//   },
+//   token: registrationToken
+// };
 
-admin.messaging().send(message)
-  .then((response) => {
-    console.log('Successfully sent message:', response);
-  })
-  .catch((error) => {
-    console.log('Error sending message:', error);
-  });
+// admin.messaging().send(message)
+//   .then((response) => {
+//     console.log('Successfully sent message:', response);
+//   })
+//   .catch((error) => {
+//     console.log('Error sending message:', error);
+//   });
