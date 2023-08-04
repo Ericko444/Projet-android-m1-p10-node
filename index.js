@@ -6,6 +6,9 @@ const prisma = new PrismaClient();
 
 const app = express();
 
+const admin = require("firebase-admin");
+
+
 app.use(express.json());
 
 async function createData() {
@@ -69,35 +72,40 @@ app.get("/api/parprovinces", (request, response) => {
 async function getPlacesWithHighestSumOfReviewNotes() {
   try {
     const placesWithReviewSum = await prisma.place.findMany({
-      select: {
-        id: true,
-        title: true,
-        desc: true,
-        provinceId: true,
-        categorieId: true,
-        latitude: true,
-        longitude: true,
-        reviews: {
+      include: {
+        categorie: true,
+        province: true,
+        tags: {
           select: {
-            note: true,
-          },
+            tag: {
+              select: {
+                id: true,
+                name: true,
+              }
+            }
+          }
         },
-      },
+        reviews: true,
+        images: true,
+        videos: true,
+      }
     });
 
-    const placesWithSum = placesWithReviewSum.map((place) => ({
-      id: place.id,
-      title: place.title,
-      desc: place.desc,
-      provinceId: place.provinceId,
-      categorieId: place.categorieId,
-      latitude: place.latitude,
-      longitude: place.longitude,
+    let placesWithSum = placesWithReviewSum.map((place) => ({
+      ...place,
       totalReviewScore: place.reviews.reduce(
         (acc, review) => acc + review.note,
         0
       ),
     }));
+
+    placesWithSum = placesWithSum.map((place) => ({
+      ...place,
+      tags: place.tags.map((tag) => ({
+        id: tag.tag.id,
+        name: tag.tag.name,
+      })),
+    }))
 
     placesWithSum.sort((a, b) => b.totalReviewScore - a.totalReviewScore);
 
@@ -122,6 +130,18 @@ async function getOneRandomPlaceFromEachProvince() {
     for (const province of provinces) {
       const placesInProvince = await prisma.place.findMany({
         where: { provinceId: province.id },
+        include: {
+          categorie: true,
+          province: true,
+          tags: {
+            include: {
+              tag: true
+            }
+          },
+          reviews: true,
+          images: true,
+          videos: true,
+        }
       });
 
       if (placesInProvince.length > 0) {
@@ -140,11 +160,34 @@ async function getOneRandomPlaceFromEachProvince() {
 }
 
 // Example usage:
-getOneRandomPlaceFromEachProvince()
-  .then((places) => console.log(places))
-  .catch((error) => console.error(error));
+// getOneRandomPlaceFromEachProvince()
+//   .then((places) => console.log(places))
+//   .catch((error) => console.error(error));
 
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+admin.initializeApp({
+  credential: admin.credential.applicationDefault(),
+  projectId: 'tourism-m1'
+});
+
+const registrationToken = 'efeoTw2OQumAqT_QXdv6L9:APA91bEv1u_BSgpyqLiAT4_k-_1m6UQX-oedZ1j2ePjCLowWncHyE2Ug9V_bEb5QeCuU-0C8rAUbnX1ZCSKchNWkWlG0Yhz2a84RNwEIOKJilFPCrGx7kyjafUOmoRdrO4mPev8xVEOU';
+
+const message = {
+  notification: {
+    title: 'Bienvenu!',
+    body: 'Notification from Node'
+  },
+  token: registrationToken
+};
+
+admin.messaging().send(message)
+  .then((response) => {
+    console.log('Successfully sent message:', response);
+  })
+  .catch((error) => {
+    console.log('Error sending message:', error);
+  });
