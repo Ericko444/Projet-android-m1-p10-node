@@ -121,7 +121,7 @@ async function getOneRandomPlaceFromEachProvince() {
 }
 
 async function login(email, password) {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
       where: { email },
   });
 
@@ -155,7 +155,7 @@ async function login(email, password) {
 async function signup(name, first_name, email, password) {
   const fullName = name + ' ' + first_name;
 
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email },
   });
 
@@ -166,7 +166,7 @@ async function signup(name, first_name, email, password) {
   try {
     const username = generateUsername(name, first_name);
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await prisma.users.create({
+    const newUser = await prisma.user.create({
       data: { 
         name: fullName.trim(),
         username: username,
