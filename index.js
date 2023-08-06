@@ -35,6 +35,12 @@ app.get("/api/parprovinces", (request, response) => {
     .catch((error) => console.log(error));
 });
 
+app.get("/api/places", (request, response) => {
+  getAllPlaces()
+    .then((places) => response.json(places))
+    .catch((error) => console.log(error));
+});
+
 async function getPlacesWithHighestSumOfReviewNotes() {
   try {
     const placesWithReviewSum = await prisma.place.findMany({
@@ -120,6 +126,31 @@ async function getOneRandomPlaceFromEachProvince() {
   } catch (error) {
     console.error(error);
     throw new Error("Failed to fetch one random place from each province");
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function getAllPlaces() {
+  try {
+    const places = await prisma.place.findMany({
+      include: {
+        categorie: true,
+        province: true,
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
+        reviews: true,
+        images: true,
+        videos: true,
+      },
+    });
+    return places;
+  } catch (error) {
+    console.error(error);
+    throw new Error("Failed to fetch places");
   } finally {
     await prisma.$disconnect();
   }
