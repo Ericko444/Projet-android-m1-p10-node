@@ -41,6 +41,14 @@ app.get("/api/places", (request, response) => {
     .catch((error) => console.log(error));
 });
 
+app.get("/api/datas", (request, response) => {
+  getAllPlaces()
+    .then((places) => {
+      divideData(places).then((data) => response.json(data));
+    })
+    .catch((error) => console.log(error));
+});
+
 async function getPlacesWithHighestSumOfReviewNotes() {
   try {
     const placesWithReviewSum = await prisma.place.findMany({
@@ -81,7 +89,7 @@ async function getPlacesWithHighestSumOfReviewNotes() {
 
     placesWithSum.sort((a, b) => b.totalReviewScore - a.totalReviewScore);
 
-    const top10Places = placesWithSum.slice(0, 10);
+    const top10Places = placesWithSum.slice(0, 5);
 
     return top10Places;
   } catch (error) {
@@ -156,6 +164,55 @@ async function getAllPlaces() {
   }
 }
 
+async function divideData(places) {
+  try {
+    let data = [];
+    data.push(places);
+    let placesWithSum = places.map((place) => ({
+      ...place,
+      totalReviewScore: place.reviews.reduce(
+        (acc, review) => acc + review.note,
+        0
+      ),
+    }));
+
+    placesWithSum = placesWithSum.map((place) => ({
+      ...place,
+      tags: place.tags.map((tag) => ({
+        id: tag.tag.id,
+        name: tag.tag.name,
+      })),
+    }));
+
+    placesWithSum.sort((a, b) => b.totalReviewScore - a.totalReviewScore);
+
+    const top10Places = placesWithSum.slice(0, 10);
+
+    data.push(top10Places);
+
+    const provinces = await prisma.province.findMany();
+    let parProvinces = [];
+    for (const province of provinces) {
+      const placesInProvince = places.filter(
+        (place) => place.provinceId === province.id
+      );
+
+      if (placesInProvince.length > 0) {
+        const randomIndex = Math.floor(Math.random() * placesInProvince.length);
+        parProvinces.push(placesInProvince[randomIndex]);
+      }
+    }
+    data.push(parProvinces);
+
+    return data;
+  } catch (error) {
+    console.error(error);
+    throw new Error("Failed to fetch places");
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function sendLoginNotification(id, tokenFromAndroid) {
   try {
     const userToken = await prisma.userToken.findUnique({
@@ -186,7 +243,12 @@ async function sendLoginNotification(id, tokenFromAndroid) {
       registrationToken = userToken.token;
     }
 
-    sendNotification(id, "Bienvenu", "Vous etes connectés !", registrationToken);
+    sendNotification(
+      id,
+      "Bienvenu",
+      "Vous etes connectés !",
+      registrationToken
+    );
   } catch (error) {
     console.error(error);
     throw new Error("Erreur d'envoi de notification");
@@ -318,14 +380,13 @@ app.listen(PORT, () => {
 // const registrationToken = 'efeoTw2OQumAqT_QXdv6L9:APA91bEv1u_BSgpyqLiAT4_k-_1m6UQX-oedZ1j2ePjCLowWncHyE2Ug9V_bEb5QeCuU-0C8rAUbnX1ZCSKchNWkWlG0Yhz2a84RNwEIOKJilFPCrGx7kyjafUOmoRdrO4mPev8xVEOU';
 
 async function sendNotification(id, title, body, registrationToken) {
-
   const notification = {
     title: title,
-    body: body
-  }
+    body: body,
+  };
   const message = {
     notification: {
-      ...notification
+      ...notification,
     },
     token: registrationToken,
   };
@@ -343,20 +404,18 @@ async function sendNotification(id, title, body, registrationToken) {
     });
 }
 
-async function saveNotification(userId, notification){
-  try{
+async function saveNotification(userId, notification) {
+  try {
     const notif = await prisma.notification.create({
-      data:{
+      data: {
         ...notification,
         userId: userId,
-        date: new Date()
-      }
-    })
-  }catch(error){
+        date: new Date(),
+      },
+    });
+  } catch (error) {
     console.error(error);
-    throw new Error(
-      "Failed to save notification"
-    );
+    throw new Error("Failed to save notification");
   } finally {
     await prisma.$disconnect();
   }
@@ -369,11 +428,11 @@ async function getNotificationsList(userId) {
         userId: userId,
       },
     });
-    
+
     notifs.map((notif) => ({
       ...notif,
-      date: DateTime.fromJSDate(notif.date).toFormat('yyyy-MM-dd HH:mm:ss')
-    }))
+      date: DateTime.fromJSDate(notif.date).toFormat("yyyy-MM-dd HH:mm:ss"),
+    }));
 
     return notifs;
   } catch (error) {
